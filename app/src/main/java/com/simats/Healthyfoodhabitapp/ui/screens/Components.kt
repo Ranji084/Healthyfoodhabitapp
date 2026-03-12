@@ -320,3 +320,60 @@ fun MealItem(icon: String, title: String, subtitle: String, onClick: () -> Unit)
         }
     }
 }
+
+@Composable
+fun GoalCard(
+    title: String,
+    subtitle: String,
+    emoji: String,
+    emojiBgColor: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isSelected) 8.dp else 2.dp
+        ),
+        border = if (isSelected) BorderStroke(2.dp, DarkGreen) else null
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(64.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = emojiBgColor
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(text = emoji, fontSize = 32.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.width(20.dp))
+
+            Column {
+                Text(
+                    text = title,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DarkGreen
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 14.sp,
+                    color = DarkGreen.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}

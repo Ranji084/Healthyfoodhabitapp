@@ -1,5 +1,6 @@
 package com.simats.Healthyfoodhabitapp.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,15 +15,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.simats.Healthyfoodhabitapp.SessionManager
 import com.simats.Healthyfoodhabitapp.ui.theme.DarkGreen
 
 @Composable
 fun WellnessScreen(navController: NavController) {
-    var waterGlasses by remember { mutableStateOf("4") }
+    val context = LocalContext.current
+    val sessionManager = remember { SessionManager(context) }
+    
+    var waterGlasses by remember { mutableStateOf(sessionManager.getWaterIntake().toString()) }
     
     var bedHour by remember { mutableStateOf(22) }
     var bedMin by remember { mutableStateOf(45) }
@@ -108,7 +114,10 @@ fun WellnessScreen(navController: NavController) {
                             quickWaterOptions.forEach { option ->
                                 val isSelected = waterGlasses == option
                                 Surface(
-                                    modifier = Modifier.clickable { waterGlasses = option }.height(40.dp).width(60.dp),
+                                    modifier = Modifier.clickable { 
+                                        waterGlasses = option
+                                        sessionManager.saveWaterIntake(option.toInt())
+                                    }.height(40.dp).width(60.dp),
                                     shape = RoundedCornerShape(20.dp),
                                     color = if (isSelected) Color(0xFF4285F4) else Color(0xFFF0F2F5).copy(alpha = 0.5f)
                                 ) {
@@ -179,7 +188,15 @@ fun WellnessScreen(navController: NavController) {
             // Action Button
             item {
                 Button(
-                    onClick = { navController.navigate("report") },
+                    onClick = { 
+                        // Calculate Sleep Duration
+                        val sleepStart = bedHour + (bedMin / 60.0)
+                        val sleepEnd = wakeHour + (wakeMin / 60.0)
+                        var duration = sleepEnd - sleepStart
+                        if (duration < 0) duration += 24
+                        
+                        navController.navigate("report?water=$waterGlasses&sleep=$duration&bedTime=$bedHour:$bedMin&wakeTime=$wakeHour:$wakeMin") 
+                    },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = DarkGreen),
                     shape = RoundedCornerShape(28.dp)

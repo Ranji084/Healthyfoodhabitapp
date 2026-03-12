@@ -22,14 +22,37 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.simats.Healthyfoodhabitapp.ui.theme.DarkGreen
+import java.util.Locale
+import kotlin.math.roundToInt
 
 @Composable
-fun ReportScreen(navController: NavController) {
+fun ReportScreen(
+    navController: NavController,
+    water: String,
+    sleep: String,
+    bedTime: String,
+    wakeTime: String
+) {
+    val waterIntake = water.toIntOrNull() ?: 0
+    val sleepHours = sleep.toDoubleOrNull() ?: 0.0
+    
+    // Analysis Logic
+    val waterScore = (waterIntake / 8.0 * 100).coerceAtMost(100.0)
+    val sleepScore = (sleepHours / 8.0 * 100).coerceAtMost(100.0)
+    val totalScore = ((waterScore + sleepScore) / 2).roundToInt()
+
+    val wellnessMessage = when {
+        totalScore >= 90 -> "Outstanding! You are maintaining peak health habits. Keep this momentum! 🚀"
+        totalScore >= 70 -> "Great job! You're on the right track, just a few small adjustments needed. 👍"
+        totalScore >= 50 -> "Fair. Your habits are okay, but you might feel more energetic with more water and sleep. 📈"
+        else -> "Needs Attention. Your body is asking for more care. Let's start improving today! 💪"
+    }
+
     Scaffold(
         bottomBar = { BottomNavBar(navController) },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { },
+                onClick = { navController.navigate("add_meal") },
                 containerColor = Color.White,
                 contentColor = DarkGreen,
                 shape = CircleShape,
@@ -53,76 +76,17 @@ fun ReportScreen(navController: NavController) {
             // Header
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        shape = CircleShape,
-                        color = Color(0xFFE8F0FE),
-                        modifier = Modifier.size(45.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Timeline, contentDescription = null, tint = Color(0xFF4285F4), modifier = Modifier.size(24.dp))
-                        }
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = DarkGreen)
                     }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Text(text = "Wellness Check", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Analysis Results", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
                 }
-            }
-
-            item { Spacer(modifier = Modifier.height(32.dp)) }
-
-            // Water Intake Card (Display)
-            item {
-                WellnessDisplayCard(
-                    icon = Icons.Default.WaterDrop,
-                    iconColor = Color(0xFF4285F4),
-                    title = "Water Intake",
-                    value = "4",
-                    unit = "glasses (250ml each)"
-                )
             }
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
 
-            // Sleep Timings Card (Display)
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.NightlightRound, contentDescription = null, tint = Color(0xFF9C27B0))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = "Sleep Timings", fontWeight = FontWeight.Bold, color = DarkGreen, fontSize = 18.sp)
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            TimeDisplayBox(label = "Bedtime", time = "10:45", icon = Icons.Default.Bedtime, modifier = Modifier.weight(1f))
-                            Spacer(modifier = Modifier.width(20.dp))
-                            TimeDisplayBox(label = "Wake Up", time = "06:00", icon = Icons.Default.WbSunny, modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(32.dp)) }
-
-            // Process Button (Disabled/Static state)
-            item {
-                Button(
-                    onClick = { },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = DarkGreen),
-                    shape = RoundedCornerShape(28.dp)
-                ) {
-                    Text(text = "Process & Get Results 📊", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(32.dp)) }
-
-            // Results Section
+            // Score Card
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -135,45 +99,71 @@ fun ReportScreen(navController: NavController) {
                     ) {
                         Text(text = "Wellness Score", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = "70%", color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = "$totalScore%", color = Color.White, fontSize = 56.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Not bad, but there's room for improvement. Focus on the areas highlighted above for a healthier day! 💪",
+                            text = wellnessMessage,
                             color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 13.sp,
+                            fontSize = 14.sp,
                             textAlign = TextAlign.Center,
-                            lineHeight = 18.sp
+                            lineHeight = 20.sp
                         )
                     }
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(16.dp)) }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
 
+            // Water Intake Card
             item {
+                val waterStatus = when {
+                    waterIntake >= 8 -> "Perfect"
+                    waterIntake >= 6 -> "Good"
+                    else -> "Low"
+                }
+                val waterDesc = when {
+                    waterIntake >= 8 -> "You've hit the recommended daily goal! Your body is well-hydrated. ✨"
+                    waterIntake >= 6 -> "Nearly there! Just a couple more glasses to reach the ideal 2L target."
+                    else -> "Dehydration alert! You only drank $waterIntake glasses. Aim for 8 glasses daily. ⚠️"
+                }
+                
                 ResultAlertCard(
-                    title = "Water Intake — Too Low",
-                    description = "Only 4 glasses! Your body needs much more water. Dehydration can cause headaches and fatigue. Drink more water! ⚠️",
-                    bgColor = Color(0xFFFFF1F1),
-                    iconColor = Color(0xFFEF5350),
-                    icon = Icons.Default.Info
+                    title = "Water: $waterStatus ($waterIntake glasses)",
+                    description = waterDesc,
+                    bgColor = if (waterIntake >= 8) Color(0xFFE8F5E9) else Color(0xFFFFF1F1),
+                    iconColor = if (waterIntake >= 8) Color(0xFF4CAF50) else Color(0xFFEF5350),
+                    icon = if (waterIntake >= 8) Icons.Default.CheckCircle else Icons.Default.Warning
                 )
             }
 
             item { Spacer(modifier = Modifier.height(16.dp)) }
 
+            // Sleep Card
             item {
+                val sleepStatus = when {
+                    sleepHours >= 7.5 -> "Excellent"
+                    sleepHours >= 6.0 -> "Adequate"
+                    else -> "Poor"
+                }
+                val formattedSleep = String.format(Locale.getDefault(), "%.1f", sleepHours)
+                val sleepDesc = when {
+                    sleepHours >= 7.5 -> "Perfect rest! You slept $formattedSleep hours. Your brain is fully charged. 😴"
+                    sleepHours >= 6.0 -> "You got $formattedSleep hours. Try to aim for a full 8 hours tonight."
+                    else -> "Sleep deprivation! $formattedSleep hours is not enough for recovery. Try to sleep earlier. 🌙"
+                }
+
                 ResultAlertCard(
-                    title = "Sleep Quality — Could Be Better",
-                    description = "You slept 7.5 hours. It's okay but aim for 8 hours for better recovery and energy. 😴",
-                    bgColor = Color(0xFFFFFDE7),
-                    iconColor = Color(0xFFFBC02D),
-                    icon = Icons.Default.Info
+                    title = "Sleep: $sleepStatus (${formattedSleep}h)",
+                    description = sleepDesc,
+                    bgColor = if (sleepHours >= 7.5) Color(0xFFE8F5E9) else Color(0xFFFFFDE7),
+                    iconColor = if (sleepHours >= 7.5) Color(0xFF4CAF50) else Color(0xFFFBC02D),
+                    icon = if (sleepHours >= 7.5) Icons.Default.CheckCircle else Icons.Default.Bedtime
                 )
             }
 
             item { Spacer(modifier = Modifier.height(32.dp)) }
 
+            // Recommendations
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -182,26 +172,30 @@ fun ReportScreen(navController: NavController) {
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Column(modifier = Modifier.padding(24.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.AccessTime, contentDescription = null, tint = DarkGreen)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = "Quick Recommendations", fontWeight = FontWeight.Bold, color = DarkGreen, fontSize = 16.sp)
-                        }
+                        Text(text = "Smart Suggestions", fontWeight = FontWeight.Bold, color = DarkGreen, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(16.dp))
-                        RecommendationItem("💧", "Increase water intake to at least 8 glasses (2L) daily. Set hourly reminders!")
-                        RecommendationItem("🌙", "Aim for 7-9 hours of sleep. Try going to bed by 10:30 PM and avoid screens 1 hour before.")
-                        RecommendationItem("🥗", "Eat balanced meals with fruits, vegetables, and protein throughout the day.")
-                        RecommendationItem("🚶", "Take a 15-minute walk after meals to improve digestion and energy levels.")
+                        
+                        if (waterIntake < 8) {
+                            RecommendationItem("💧", "Drink one glass of water every 2 hours to reach 8 glasses.")
+                        }
+                        if (sleepHours < 8) {
+                            val bedtimeHour = bedTime.split(":")[0].toIntOrNull() ?: 22
+                            RecommendationItem("🌙", "Move your bedtime to ${bedtimeHour - 1}:00 PM tonight.")
+                        }
+                        RecommendationItem("🧘", "Practice deep breathing for 5 minutes to boost oxygen levels.")
+                        RecommendationItem("🥗", "Ensure your next meal has a high water content (like cucumber or watermelon).")
                     }
                 }
             }
 
             item { Spacer(modifier = Modifier.height(32.dp)) }
 
-            // Save Report to Device Button
+            // Save Report
             item {
                 Button(
-                    onClick = { navController.navigate("saved_report") },
+                    onClick = { 
+                        navController.navigate("saved_report?water=$water&sleep=$sleep&bedTime=$bedTime&wakeTime=$wakeTime&score=$totalScore") 
+                    },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                     shape = RoundedCornerShape(30.dp),
@@ -210,65 +204,12 @@ fun ReportScreen(navController: NavController) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.FileDownload, contentDescription = null, tint = DarkGreen)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Save Report to Device 📱", color = DarkGreen, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "Download Full Analysis 📱", color = DarkGreen, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
             
             item { Spacer(modifier = Modifier.height(100.dp)) }
-        }
-    }
-}
-
-@Composable
-fun WellnessDisplayCard(icon: androidx.compose.ui.graphics.vector.ImageVector, iconColor: Color, title: String, value: String, unit: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(24.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, tint = iconColor)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = title, fontWeight = FontWeight.Bold, color = DarkGreen, fontSize = 18.sp)
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    modifier = Modifier.width(100.dp).height(56.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color(0xFFF0F2F5))
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(text = value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
-                    }
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(text = unit, color = Color(0xFF4CAF50), fontWeight = FontWeight.Medium)
-            }
-        }
-    }
-}
-
-@Composable
-fun TimeDisplayBox(label: String, time: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier) {
-    Column(modifier = modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = DarkGreen, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(text = label, fontSize = 12.sp, color = DarkGreen, fontWeight = FontWeight.Bold)
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Surface(
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, Color(0xFFF0F2F5))
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(text = time, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
-            }
         }
     }
 }

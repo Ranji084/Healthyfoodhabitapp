@@ -1,63 +1,84 @@
 package com.simats.Healthyfoodhabitapp.ui.screens
 
-import androidx.compose.foundation.Canvas
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.simats.Healthyfoodhabitapp.SessionManager
+import com.simats.Healthyfoodhabitapp.network.*
 import com.simats.Healthyfoodhabitapp.ui.theme.DarkGreen
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.pow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController) {
-    var showDatePicker by remember { mutableStateOf(false) }
-    var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    val context = LocalContext.current
+    val sessionManager = remember { SessionManager(context) }
     
-    val dateFormatter = remember { SimpleDateFormat("EEEE, MMMM dd, yyyy", Locale.getDefault()) }
-    val dateString = dateFormatter.format(Date(selectedDateMillis))
+    // Use state to track the name so it updates when session manager changes
+    var userName by remember { mutableStateOf(sessionManager.getUserName()) }
+    val userId = sessionManager.getUserId()
     
-    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDateMillis)
+    var healthScore by remember { mutableIntStateOf(sessionManager.getHealthScore()) }
+    var protein by remember { mutableStateOf("0g") }
+    var carbs by remember { mutableStateOf("0g") }
+    var fats by remember { mutableStateOf("0g") }
 
-    if (showDatePicker) {
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let {
-                        selectedDateMillis = it
+    var isLoadingData by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        // Refresh name whenever we enter home
+        userName = sessionManager.getUserName()
+
+        if (userId != -1) {
+            val api = RetrofitClient.getInstance(context).create(ApiService::class.java)
+            
+            val request = InsightsRequest(userId)
+            api.getViewInsights(request).enqueue(object : Callback<InsightsResponse> {
+                override fun onResponse(call: Call<InsightsResponse>, response: Response<InsightsResponse>) {
+                    isLoadingData = false
+                    if (response.isSuccessful && response.body() != null) {
+                        val data = response.body()!!
+                        healthScore = data.healthPercentage
+                        sessionManager.saveHealthScore(healthScore)
+                        
+                        val nutrition = data.nutritionTotals
+                        protein = "${nutrition?.protein?.toInt() ?: 0}g"
+                        carbs = "${nutrition?.carbs?.toInt() ?: 0}g"
+                        fats = "${nutrition?.fat?.toInt() ?: 0}g"
                     }
-                    showDatePicker = false
-                }) {
-                    Text("OK", color = DarkGreen)
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text("Cancel", color = DarkGreen)
+                override fun onFailure(call: Call<InsightsResponse>, t: Throwable) {
+                    isLoadingData = false
                 }
-            }
-        ) {
-            DatePicker(state = datePickerState)
+            })
+        } else {
+            isLoadingData = false
         }
     }
 
@@ -77,230 +98,173 @@ fun HomeScreen(navController: NavController) {
         floatingActionButtonPosition = FabPosition.Center,
         containerColor = Color.White
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 24.dp)
-        ) {
-            item { Spacer(modifier = Modifier.height(20.dp)) }
-            
-            // Header
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
+        if (isLoadingData) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = DarkGreen)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 24.dp)
+            ) {
+                item { Spacer(modifier = Modifier.height(20.dp)) }
+                
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = "Hi,  ranji ! 👋",
+                            text = "Hi, $userName ! 👋",
                             fontSize = 26.sp,
                             fontWeight = FontWeight.Bold,
                             color = DarkGreen
                         )
-                        Text(
-                            text = "Ready to crush it today?",
-                            fontSize = 14.sp,
-                            color = DarkGreen.copy(alpha = 0.7f)
-                        )
-                    }
-                    Surface(
-                        shape = CircleShape,
-                        color = Color(0xFFE8F5E9),
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.FileDownload,
-                                contentDescription = "Export",
-                                tint = DarkGreen,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(24.dp)) }
-
-            // Date Card
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showDatePicker = true },
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F2F5).copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFC1F0D1).copy(alpha = 0.5f),
-                            modifier = Modifier.size(40.dp)
+                            shape = CircleShape,
+                            color = Color(0xFFE8F5E9),
+                            modifier = Modifier.size(48.dp).clickable { navController.navigate("profile") }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = DarkGreen, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Person, contentDescription = "Profile", tint = DarkGreen, modifier = Modifier.size(24.dp))
                             }
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column {
-                            val isToday = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date()) == 
-                                          SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date(selectedDateMillis))
-                            Text(text = if (isToday) "Today" else "Selected Day", fontSize = 12.sp, color = Color.Gray)
-                            Text(text = dateString, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
-                        }
                     }
                 }
-            }
 
-            item { Spacer(modifier = Modifier.height(24.dp)) }
+                item { Spacer(modifier = Modifier.height(24.dp)) }
 
-            // Daily Health Score Card
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(32.dp),
-                    colors = CardDefaults.cardColors(containerColor = DarkGreen)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(28.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(32.dp),
+                        colors = CardDefaults.cardColors(containerColor = DarkGreen)
                     ) {
-                        Text(text = "Daily Health Score", color = Color.White.copy(alpha = 0.9f), fontSize = 16.sp)
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        Box(contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(
-                                progress = { 0.65f },
-                                modifier = Modifier.size(150.dp),
-                                color = Color(0xFF00C853),
-                                strokeWidth = 14.dp,
-                                trackColor = Color.White.copy(alpha = 0.1f),
-                                strokeCap = StrokeCap.Round
-                            )
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = "65%", color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.Bold)
-                                Text(text = "Good Job!", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
+                        Column(
+                            modifier = Modifier.padding(28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(
+                                    progress = { healthScore / 100f },
+                                    modifier = Modifier.size(140.dp),
+                                    color = Color(0xFF00C853),
+                                    strokeWidth = 12.dp,
+                                    trackColor = Color.White.copy(alpha = 0.1f),
+                                    strokeCap = StrokeCap.Round
+                                )
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(text = "$healthScore%", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold)
+                                    Text(text = "Health Score", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                                StatItem(protein, "Protein")
+                                StatItem(carbs, "Carbs")
+                                StatItem(fats, "Fats")
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(32.dp))
-
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                            StatItem("1,240", "Kcal Left")
-                            StatItem("45g", "Protein")
-                            StatItem("120g", "Carbs")
-                        }
                     }
                 }
-            }
 
-            item { Spacer(modifier = Modifier.height(24.dp)) }
+                item { Spacer(modifier = Modifier.height(24.dp)) }
 
-            // Water and Steps
-            item {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    SmallStatCard(
-                        modifier = Modifier.weight(1f),
-                        icon = "💧",
-                        value = "1.2L",
-                        label = "Water",
-                        bgColor = Color(0xFFE3F2FD)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    SmallStatCard(
-                        modifier = Modifier.weight(1f),
-                        icon = "👟",
-                        value = "4,502",
-                        label = "Steps",
-                        bgColor = Color(0xFFFFF3E0)
-                    )
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(24.dp)) }
-
-            // Health Report
-            item {
-                ActionCard(
-                    icon = Icons.Default.FavoriteBorder,
-                    title = "Health Report",
-                    subtitle = "See how healthy you are & what to eat.",
-                    onClick = { navController.navigate("health_report") }
-                )
-            }
-
-            item { Spacer(modifier = Modifier.height(16.dp)) }
-
-            // Today's Insights
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable { navController.navigate("progress") },
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(20.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
-                        Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(
-                                progress = { 0.65f },
-                                modifier = Modifier.fillMaxSize(),
-                                color = DarkGreen,
-                                strokeWidth = 4.dp,
-                                trackColor = Color(0xFFF0F2F5),
-                                strokeCap = StrokeCap.Round
-                            )
-                            Text(text = "65%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Text(text = "BMI Calculator", fontWeight = FontWeight.Bold, color = DarkGreen, fontSize = 18.sp)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            var heightInput by remember { mutableStateOf("") }
+                            var weightInput by remember { mutableStateOf("") }
+
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = heightInput,
+                                    onValueChange = { heightInput = it },
+                                    label = { Text("Height (cm)") },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                OutlinedTextField(
+                                    value = weightInput,
+                                    onValueChange = { weightInput = it },
+                                    label = { Text("Weight (kg)") },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Button(
+                                onClick = {
+                                    val h = heightInput.toFloatOrNull()
+                                    val w = weightInput.toFloatOrNull()
+                                    if (h != null && w != null && h > 0) {
+                                        val bmiValue = w / (h / 100).pow(2)
+                                        val category = when {
+                                            bmiValue < 18.5 -> "Underweight"
+                                            bmiValue < 25 -> "Normal weight"
+                                            bmiValue < 30 -> "Overweight"
+                                            else -> "Obese"
+                                        }
+                                        val bmiStr = String.format(Locale.getDefault(), "%.1f", bmiValue)
+                                        navController.navigate("bmi_result?bmi=$bmiStr&category=$category")
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = DarkGreen),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Calculate BMI", fontWeight = FontWeight.Bold)
+                            }
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "Today's Insights", fontWeight = FontWeight.Bold, color = DarkGreen, fontSize = 16.sp)
-                            Text(text = "See your full nutrition report", fontSize = 12.sp, color = Color.Gray)
-                        }
-                        Text(text = "View", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
-                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = DarkGreen)
                     }
                 }
-            }
 
-            item { Spacer(modifier = Modifier.height(32.dp)) }
+                item { Spacer(modifier = Modifier.height(30.dp)) }
 
-            // Today's Meals
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    Text(text = "Today's Meals", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
-                    Text(
-                        text = "Add Meal",
-                        fontSize = 14.sp,
-                        color = DarkGreen,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable { navController.navigate("add_meal") }
-                    )
+                item {
+                    Button(
+                        onClick = { navController.navigate("add_meal?mealType=Breakfast") },
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = DarkGreen),
+                        shape = RoundedCornerShape(28.dp)
+                    ) {
+                        Text("Add Today's Meal", fontWeight = FontWeight.Bold)
+                    }
                 }
+
+                item { Spacer(modifier = Modifier.height(12.dp)) }
+
+                item {
+                    OutlinedButton(
+                        onClick = { navController.navigate("progress") },
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        shape = RoundedCornerShape(28.dp),
+                        border = androidx.compose.foundation.BorderStroke(2.dp, DarkGreen)
+                    ) {
+                        Text("View Insights", fontWeight = FontWeight.Bold, color = DarkGreen)
+                    }
+                }
+                
+                item { Spacer(modifier = Modifier.height(100.dp)) }
             }
-
-            item { Spacer(modifier = Modifier.height(16.dp)) }
-
-            item { MealItem("🍳", "Breakfast", "Log your meal", onClick = { navController.navigate("add_meal?mealType=Breakfast") }) }
-            item { Spacer(modifier = Modifier.height(12.dp)) }
-            item { MealItem("🥗", "Lunch", "Log your meal", onClick = { navController.navigate("add_meal?mealType=Lunch") }) }
-            item { Spacer(modifier = Modifier.height(12.dp)) }
-            item { MealItem("🍛", "Dinner", "Log your meal", onClick = { navController.navigate("add_meal?mealType=Dinner") }) }
-            item { Spacer(modifier = Modifier.height(12.dp)) }
-            item { MealItem("🍎", "Snack", "Log your meal", onClick = { navController.navigate("add_meal?mealType=Snack") }) }
-            
-            item { Spacer(modifier = Modifier.height(100.dp)) }
         }
     }
 }

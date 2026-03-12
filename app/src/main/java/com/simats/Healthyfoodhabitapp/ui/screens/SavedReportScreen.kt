@@ -1,5 +1,6 @@
 package com.simats.Healthyfoodhabitapp.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -11,23 +12,58 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.simats.Healthyfoodhabitapp.PdfHelper
+import com.simats.Healthyfoodhabitapp.SessionManager
 import com.simats.Healthyfoodhabitapp.ui.theme.DarkGreen
 
 @Composable
-fun SavedReportScreen(navController: NavController) {
+fun SavedReportScreen(
+    navController: NavController,
+    water: String,
+    sleep: String,
+    bedTime: String,
+    wakeTime: String,
+    score: String
+) {
+    val context = LocalContext.current
+    val sessionManager = remember { SessionManager(context) }
+    val username = sessionManager.getUserName()
+    val email = sessionManager.getUserEmail() ?: ""
+
+    // Automatically generate and save PDF when screen opens
+    LaunchedEffect(Unit) {
+        val isSaved = PdfHelper.generateAndSaveWellnessPdf(
+            context = context,
+            username = username,
+            email = email, // FIXED: Passing the email parameter
+            water = water,
+            sleep = sleep,
+            score = score
+        )
+        if (isSaved) {
+            Toast.makeText(context, "PDF saved to Downloads", Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(context, "Failed to save PDF.", Toast.LENGTH_LONG).show()
+        }
+    }
+
     Scaffold(
         bottomBar = { BottomNavBar(navController) },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { },
+                onClick = { navController.navigate("add_meal") },
                 containerColor = Color.White,
                 contentColor = DarkGreen,
                 shape = CircleShape,
@@ -51,17 +87,11 @@ fun SavedReportScreen(navController: NavController) {
             // Header
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        shape = CircleShape,
-                        color = Color(0xFFE8F0FE),
-                        modifier = Modifier.size(45.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Timeline, contentDescription = null, tint = Color(0xFF4285F4), modifier = Modifier.size(24.dp))
-                        }
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = DarkGreen)
                     }
                     Spacer(modifier = Modifier.width(16.dp))
-                    Text(text = "Wellness Check", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
+                    Text(text = "Saved Report", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
                 }
             }
 
@@ -73,7 +103,7 @@ fun SavedReportScreen(navController: NavController) {
                     icon = Icons.Default.WaterDrop,
                     iconColor = Color(0xFF4285F4),
                     title = "Water Intake",
-                    value = "4",
+                    value = water,
                     unit = "glasses (250ml each)"
                 )
             }
@@ -96,25 +126,11 @@ fun SavedReportScreen(navController: NavController) {
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth()) {
-                            TimeDisplayBox(label = "Bedtime", time = "10:45", icon = Icons.Default.Bedtime, modifier = Modifier.weight(1f))
+                            TimeDisplayBox(label = "Bedtime", time = bedTime, icon = Icons.Default.Bedtime, modifier = Modifier.weight(1f))
                             Spacer(modifier = Modifier.width(20.dp))
-                            TimeDisplayBox(label = "Wake Up", time = "06:00", icon = Icons.Default.WbSunny, modifier = Modifier.weight(1f))
+                            TimeDisplayBox(label = "Wake Up", time = wakeTime, icon = Icons.Default.WbSunny, modifier = Modifier.weight(1f))
                         }
                     }
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(32.dp)) }
-
-            // Process Button
-            item {
-                Button(
-                    onClick = { },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = DarkGreen),
-                    shape = RoundedCornerShape(28.dp)
-                ) {
-                    Text(text = "Process & Get Results 📊", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -133,10 +149,10 @@ fun SavedReportScreen(navController: NavController) {
                     ) {
                         Text(text = "Wellness Score", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = "70%", color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "$score%", color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Not bad, but there's room for improvement. Focus on the areas highlighted above for a healthier day! 💪",
+                            text = "Report generated for $username ($email). Focus on maintaining these healthy habits! 💪",
                             color = Color.White.copy(alpha = 0.9f),
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center,
@@ -147,54 +163,6 @@ fun SavedReportScreen(navController: NavController) {
             }
 
             item { Spacer(modifier = Modifier.height(16.dp)) }
-
-            item {
-                ResultAlertCard(
-                    title = "Water Intake — Too Low",
-                    description = "Only 4 glasses! Your body needs much more water. Dehydration can cause headaches and fatigue. Drink more water! ⚠️",
-                    bgColor = Color(0xFFFFF1F1),
-                    iconColor = Color(0xFFEF5350),
-                    icon = Icons.Default.Info
-                )
-            }
-
-            item { Spacer(modifier = Modifier.height(16.dp)) }
-
-            item {
-                ResultAlertCard(
-                    title = "Sleep Quality — Could Be Better",
-                    description = "You slept 7.5 hours. It's okay but aim for 8 hours for better recovery and energy. 😴",
-                    bgColor = Color(0xFFFFFDE7),
-                    iconColor = Color(0xFFFBC02D),
-                    icon = Icons.Default.Info
-                )
-            }
-
-            item { Spacer(modifier = Modifier.height(32.dp)) }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.AccessTime, contentDescription = null, tint = DarkGreen)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = "Quick Recommendations", fontWeight = FontWeight.Bold, color = DarkGreen, fontSize = 16.sp)
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        RecommendationItem("💧", "Increase water intake to at least 8 glasses (2L) daily. Set hourly reminders!")
-                        RecommendationItem("🌙", "Aim for 7-9 hours of sleep. Try going to bed by 10:30 PM and avoid screens 1 hour before.")
-                        RecommendationItem("🥗", "Eat balanced meals with fruits, vegetables, and protein throughout the day.")
-                        RecommendationItem("🚶", "Take a 15-minute walk after meals to improve digestion and energy levels.")
-                    }
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(24.dp)) }
 
             // Saved! Banner
             item {
@@ -211,12 +179,65 @@ fun SavedReportScreen(navController: NavController) {
                     ) {
                         Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Saved! Check your downloads", color = DarkGreen, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(text = "PDF saved as wellnesspdf_${username.replace(" ", "_")}.pdf", color = DarkGreen, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             }
             
             item { Spacer(modifier = Modifier.height(100.dp)) }
+        }
+    }
+}
+
+@Composable
+fun WellnessDisplayCard(icon: ImageVector, iconColor: Color, title: String, value: String, unit: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(24.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, contentDescription = null, tint = iconColor)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = title, fontWeight = FontWeight.Bold, color = DarkGreen, fontSize = 18.sp)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    modifier = Modifier.width(100.dp).height(56.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF0F2F5))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(text = value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(text = unit, color = Color(0xFF4CAF50), fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+@Composable
+fun TimeDisplayBox(label: String, time: String, icon: ImageVector, modifier: Modifier) {
+    Column(modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = DarkGreen, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(text = label, fontSize = 12.sp, color = DarkGreen, fontWeight = FontWeight.Bold)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Surface(
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, Color(0xFFF0F2F5))
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(text = time, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
+            }
         }
     }
 }

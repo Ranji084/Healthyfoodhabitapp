@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.ReportProblem
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.StarOutline
@@ -162,31 +163,13 @@ fun SettingsScreen(navController: NavController) {
             item {
                 SectionHeader("About")
                 Spacer(modifier = Modifier.height(12.dp))
-                 Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                     Column(
-                         modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                         horizontalAlignment = Alignment.CenterHorizontally
-                     ) {
-                         Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = Color(0xFFC1F0D1).copy(alpha = 0.5f),
-                            modifier = Modifier.size(64.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(text = "🥗", fontSize = 32.sp)
-                            }
-                        }
-                         Spacer(modifier = Modifier.height(16.dp))
-                         Text(text = "Healthy Food Habit", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
-                         Text(text = "Version 1.0.0", fontSize = 14.sp, color = Color.Gray)
-                         Text(text = "Made with 💚 for a better you.", fontSize = 13.sp, color = Color.Gray, modifier = Modifier.padding(top=4.dp))
-                     }
-                 }
+                SettingsItem(
+                    icon = Icons.Outlined.Info,
+                    iconBgColor = Color(0xFFC1F0D1).copy(alpha = 0.5f),
+                    title = "About App",
+                    subtitle = "Learn more about Healthy Habit",
+                    onClick = { navController.navigate("introduction") }
+                )
             }
 
             item { Spacer(modifier = Modifier.height(32.dp)) }

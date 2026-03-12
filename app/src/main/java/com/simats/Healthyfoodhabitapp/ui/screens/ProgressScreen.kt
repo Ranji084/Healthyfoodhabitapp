@@ -1,403 +1,212 @@
 package com.simats.Healthyfoodhabitapp.ui.screens
 
-import androidx.compose.foundation.Canvas
+import android.util.Log
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.simats.Healthyfoodhabitapp.SessionManager
+import com.simats.Healthyfoodhabitapp.network.*
 import com.simats.Healthyfoodhabitapp.ui.theme.DarkGreen
-import java.text.SimpleDateFormat
-import java.util.*
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProgressScreen(navController: NavController) {
-    var showDatePicker by remember { mutableStateOf(false) }
-    var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    val context = LocalContext.current
+    val sessionManager = remember { SessionManager(context) }
     
-    val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
-    val dateString = dateFormatter.format(Date(selectedDateMillis))
-    
-    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDateMillis)
+    var insightsData by remember { mutableStateOf<InsightsResponse?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
 
-    if (showDatePicker) {
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let {
-                        selectedDateMillis = it
-                    }
-                    showDatePicker = false
-                }) {
-                    Text("OK", color = DarkGreen)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text("Cancel", color = DarkGreen)
+    LaunchedEffect(Unit) {
+        val api = RetrofitClient.getInstance(context).create(ApiService::class.java)
+        val userId = sessionManager.getUserId()
+
+        val request = InsightsRequest(userId)
+        api.getViewInsights(request).enqueue(object : Callback<InsightsResponse> {
+            override fun onResponse(call: Call<InsightsResponse>, response: Response<InsightsResponse>) {
+                isLoading = false
+                if (response.isSuccessful && response.body() != null) {
+                    val data = response.body()!!
+                    insightsData = data
+                    
+                    // Direct sync to Home Page score
+                    sessionManager.saveHealthScore(data.healthPercentage)
+                    sessionManager.saveAiAdvice(data.aiSuggestion ?: "Keep logging!")
                 }
             }
-        ) {
-            DatePicker(state = datePickerState)
-        }
+
+            override fun onFailure(call: Call<InsightsResponse>, t: Throwable) {
+                isLoading = false
+            }
+        })
     }
 
     Scaffold(
         bottomBar = { BottomNavBar(navController) },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { navController.navigate("add_meal") },
-                containerColor = Color.White,
-                contentColor = DarkGreen,
-                shape = CircleShape,
-                modifier = Modifier.offset(y = 50.dp).size(60.dp)
+        containerColor = Color(0xFFF3F0E7)
+    ) { padding ->
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = DarkGreen)
+            }
+        } else if (insightsData == null) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Could not load insights. Please check your connection.")
+            }
+        } else {
+            val data = insightsData!!
+            val nutrition = data.nutritionTotals
+            
+            // Fixed sequence: breakfast, lunch, snacks, dinner
+            val order = listOf("breakfast", "lunch", "snacks", "snack", "dinner")
+            val flattenedMeals = data.mealBreakdown?.flatMap { entry ->
+                entry.value.map { foodItem ->
+                    MealSummaryV2(entry.key, foodItem.food, 70) // Mapping Map to List for display
+                }
+            }?.sortedBy { meal ->
+                val idx = order.indexOf(meal.mealType.lowercase())
+                if (idx == -1) 99 else idx
+            } ?: emptyList()
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 16.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(30.dp))
-            }
-        },
-        floatingActionButtonPosition = FabPosition.Center,
-        containerColor = Color.White
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 24.dp)
-        ) {
-            item { Spacer(modifier = Modifier.height(20.dp)) }
-
-            // Header
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Your Progress 📈",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = DarkGreen
-                    )
-                    
-                    Surface(
-                        onClick = { showDatePicker = true },
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFF0F2F5).copy(alpha = 0.5f),
-                        modifier = Modifier.height(40.dp).width(120.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = dateString,
-                                color = DarkGreen,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Icon(
-                                Icons.Default.CalendarMonth,
-                                contentDescription = null,
-                                tint = DarkGreen,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(24.dp)) }
-
-            // Today's Health Card
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = DarkGreen)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(24.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(text = "Today's Health", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = "72%", color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = "+8% better", color = Color(0xFF4CAF50), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(text = "vs yesterday", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
-                            }
-                        }
-                        
-                        Box(contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(
-                                progress = { 0.72f },
-                                modifier = Modifier.size(80.dp),
-                                color = Color(0xFF4CAF50),
-                                strokeWidth = 8.dp,
-                                trackColor = Color.White.copy(alpha = 0.1f),
-                                strokeCap = StrokeCap.Round
-                            )
-                            Text(text = "🌿", fontSize = 24.sp)
-                        }
-                    }
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(32.dp)) }
-
-            // Today's Meal Breakdown Section
-            item {
-                SectionHeader("Today's Meal Breakdown")
-                Spacer(modifier = Modifier.height(12.dp))
+                item { Spacer(modifier = Modifier.height(16.dp)) }
+                item { Text("Your Progress 📈", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = DarkGreen) }
+                item { Spacer(modifier = Modifier.height(16.dp)) }
                 
-                // Meal List
-                MealProgressItem("breakfast", "egg and tea", 0.52f, 0.44f, 0.88f, Color(0xFF4285F4))
-                Spacer(modifier = Modifier.height(12.dp))
-                MealProgressItem("lunch", "fish fry", 0.61f, 0.42f, 0.75f, Color(0xFF4285F4))
-                Spacer(modifier = Modifier.height(12.dp))
-                MealProgressItem("dinner", "chicken 65", 0.63f, 0.56f, 0.45f, Color(0xFF4285F4))
-                Spacer(modifier = Modifier.height(12.dp))
-                MealProgressItem("snack", "pancakes", 0.62f, 0.37f, 0.82f, Color(0xFF4285F4))
-            }
-
-            item { Spacer(modifier = Modifier.height(32.dp)) }
-
-            // Weekly Health Score Trend
-            item {
-                SectionHeader("Weekly Health Score Trend")
-                Spacer(modifier = Modifier.height(12.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
-                        WeeklyTrendChart()
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            listOf("T", "W", "T", "F", "S", "S", "M").forEach { day ->
-                                Text(text = day, fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                // TODAY'S HEALTH (Directly reflects on Home)
+                item {
+                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = DarkGreen)) {
+                        Row(modifier = Modifier.padding(20.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column {
+                                Text("Today's Health", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
+                                Text("${data.healthPercentage}%", color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.Bold)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Reflected on Dashboard", color = Color.White, fontSize = 12.sp)
+                                }
+                            }
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(80.dp)) {
+                                CircularProgressIndicator(progress = { data.healthPercentage / 100f }, modifier = Modifier.fillMaxSize(), color = Color.White, strokeWidth = 6.dp, trackColor = Color.White.copy(alpha = 0.2f), strokeCap = StrokeCap.Round)
+                                Icon(Icons.Default.Shield, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
                             }
                         }
                     }
                 }
-            }
 
-            item { Spacer(modifier = Modifier.height(32.dp)) }
-
-            // Nutrient Breakdown
-            item {
-                SectionHeader("Nutrient Breakdown")
-                Spacer(modifier = Modifier.height(12.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
-                        NutrientItem("Protein", 0.58f, Color(0xFF4285F4), "58 %")
-                        NutrientItem("Carbs & Fiber", 0.61f, Color(0xFFFF9800), "61 %")
-                        NutrientItem("Minerals", 0.62f, Color(0xFF4CAF50), "62 %")
+                item { Spacer(modifier = Modifier.height(24.dp)) }
+                item { Text("Today's Meal Breakdown", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DarkGreen) }
+                item { Spacer(modifier = Modifier.height(8.dp)) }
+                
+                items(flattenedMeals) { meal ->
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(meal.mealType.replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = DarkGreen)
+                                    Text(meal.foodItems, fontSize = 13.sp, color = Color.Gray)
+                                }
+                                Surface(color = Color(0xFFE8F5E9), shape = RoundedCornerShape(12.dp)) {
+                                    Text("${meal.score}%", color = DarkGreen, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 14.sp)
+                                }
+                            }
+                        }
                     }
                 }
-            }
 
-            item { Spacer(modifier = Modifier.height(32.dp)) }
-
-            // AI Coach Suggestions
-            item {
-                SectionHeader("AI Coach Suggestions")
-                Spacer(modifier = Modifier.height(12.dp))
-                CoachSuggestionItem(
-                    icon = Icons.Default.CheckCircle,
-                    iconColor = Color(0xFF4CAF50),
-                    title = "Great Protein Intake!",
-                    description = "You're at 58% protein — hitting your goals. Keep it up! 💪",
-                    tag = "muscle-building",
-                    bgColor = Color(0xFFE8F5E9)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                CoachSuggestionItem(
-                    icon = Icons.Default.CheckCircle,
-                    iconColor = Color(0xFF4CAF50),
-                    title = "Balanced Carbs!",
-                    description = "Fiber & carbs at 61% — well balanced for sustained energy throughout the day! 🔋",
-                    bgColor = Color(0xFFE8F5E9)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                CoachSuggestionItem(
-                    icon = Icons.Default.CheckCircle,
-                    iconColor = Color(0xFF4CAF50),
-                    title = "Good Mineral Levels!",
-                    description = "Minerals at 62% — your body is getting the micronutrients it needs! 🌿",
-                    bgColor = Color(0xFFE8F5E9)
-                )
-            }
-
-            item { Spacer(modifier = Modifier.height(100.dp)) }
-        }
-    }
-}
-
-@Composable
-fun MealProgressItem(title: String, subtitle: String, score: Float, protein: Float, carbs: Float, color: Color) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
-                    Text(text = subtitle, fontSize = 12.sp, color = Color.Gray)
+                item { Spacer(modifier = Modifier.height(24.dp)) }
+                
+                // NUTRIENT BREAKDOWN
+                item {
+                    val p = if (nutrition != null) (nutrition.protein / 60 * 100).toInt().coerceIn(0, 100) else 0
+                    val c = if (nutrition != null) (nutrition.carbs / 300 * 100).toInt().coerceIn(0, 100) else 0
+                    val f = if (nutrition != null) (nutrition.fat / 70 * 100).toInt().coerceIn(0, 100) else 0
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Nutrient Breakdown", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DarkGreen)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            NutrientBar("Protein", p, Color(0xFF2196F3))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            NutrientBar("Carbs", c, Color(0xFFFFC107))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            NutrientBar("Fats", f, Color(0xFF4CAF50))
+                        }
+                    }
                 }
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFFE8F5E9),
-                    modifier = Modifier.padding(start = 8.dp)
-                ) {
-                    Text(
-                        text = "${(score * 100).toInt()} %",
-                        color = Color(0xFF4CAF50),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+
+                item { Spacer(modifier = Modifier.height(24.dp)) }
+                item { Text("AI Coach Suggestions", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DarkGreen) }
+                item { Spacer(modifier = Modifier.height(8.dp)) }
+                
+                item {
+                    val allFood = flattenedMeals.joinToString(" ") { it.foodItems.lowercase() }
+                    val dynamicAdvice = when {
+                        allFood.isEmpty() -> "Log your first meal to get personalized advice!"
+                        allFood.contains("apple") || allFood.contains("banana") || allFood.contains("fruit") -> 
+                            "Vitamins on point! Combine fruit with a protein source like nuts for sustained energy. 🍎"
+                        allFood.contains("chicken") || allFood.contains("egg") || allFood.contains("protein") -> 
+                            "Great protein intake! Add some fiber-rich greens like spinach to balance the meal. 🍗"
+                        allFood.contains("rice") || allFood.contains("bread") || allFood.contains("pasta") -> 
+                            "Good fuel! Try whole-grain versions for better digestion and stable sugar levels. 🌾"
+                        else -> data.aiSuggestion ?: "Looking good! Keep tracking to reach your daily goal."
+                    }
+
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)), border = BorderStroke(1.dp, Color(0xFFC8E6C9))) {
+                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = DarkGreen, modifier = Modifier.padding(top = 2.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Personalized Advice", fontWeight = FontWeight.Bold, color = DarkGreen)
+                                Text(dynamicAdvice, fontSize = 12.sp, color = DarkGreen.copy(alpha = 0.8f), lineHeight = 16.sp)
+                            }
+                        }
+                    }
                 }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "Protein", fontSize = 10.sp, color = Color.Gray, modifier = Modifier.width(50.dp))
-                LinearProgressIndicator(
-                    progress = { protein },
-                    modifier = Modifier.weight(1f).height(4.dp).clip(CircleShape),
-                    color = color,
-                    trackColor = Color(0xFFF0F2F5)
-                )
-                Text(text = "${(protein * 100).toInt()}%", fontSize = 10.sp, color = Color.Gray, modifier = Modifier.padding(start = 8.dp))
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "Carbs", fontSize = 10.sp, color = Color.Gray, modifier = Modifier.width(50.dp))
-                LinearProgressIndicator(
-                    progress = { carbs },
-                    modifier = Modifier.weight(1f).height(4.dp).clip(CircleShape),
-                    color = Color(0xFFFF9800),
-                    trackColor = Color(0xFFF0F2F5)
-                )
-                Text(text = "${(carbs * 100).toInt()}%", fontSize = 10.sp, color = Color.Gray, modifier = Modifier.padding(start = 8.dp))
+                item { Spacer(modifier = Modifier.height(100.dp)) }
             }
         }
     }
 }
 
 @Composable
-fun WeeklyTrendChart() {
-    Canvas(modifier = Modifier.fillMaxWidth().height(120.dp)) {
-        val points = listOf(40f, 50f, 35f, 75f, 65f, 30f, 50f)
-        val maxVal = 100f
-        val width = size.width
-        val height = size.height
-        val spacing = width / (points.size - 1)
-
-        val path = Path().apply {
-            points.forEachIndexed { i, p ->
-                val x = i * spacing
-                val y = height - (p / maxVal * height)
-                if (i == 0) moveTo(x, y) else lineTo(x, y)
-            }
-        }
-
-        drawPath(
-            path = path,
-            color = DarkGreen,
-            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-        )
-
-        points.forEachIndexed { i, p ->
-            val x = i * spacing
-            val y = height - (p / maxVal * height)
-            drawCircle(color = DarkGreen, radius = 4.dp.toPx(), center = Offset(x, y))
-        }
-    }
-}
-
-@Composable
-fun NutrientItem(label: String, progress: Float, color: Color, percent: String) {
-    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+fun NutrientBar(name: String, percent: Int, color: Color, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(text = label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = DarkGreen)
-            Text(text = percent, fontSize = 14.sp, color = Color.Gray)
+            Text(name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text("$percent%", fontSize = 12.sp, color = color, fontWeight = FontWeight.Bold)
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         LinearProgressIndicator(
-            progress = { progress },
-            modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+            progress = { percent / 100f },
+            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
             color = color,
-            trackColor = Color(0xFFF0F2F5)
+            trackColor = color.copy(alpha = 0.2f)
         )
-    }
-}
-
-@Composable
-fun CoachSuggestionItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    iconColor: Color,
-    title: String,
-    description: String,
-    tag: String? = null,
-    bgColor: Color
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = bgColor)
-    ) {
-        Row(modifier = Modifier.padding(16.dp)) {
-            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp))
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(text = title, fontWeight = FontWeight.Bold, color = DarkGreen, fontSize = 14.sp)
-                    if (tag != null) {
-                        Text(text = tag, fontSize = 10.sp, color = Color.Gray)
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = description, color = DarkGreen.copy(alpha = 0.8f), fontSize = 12.sp, lineHeight = 18.sp)
-            }
-        }
     }
 }

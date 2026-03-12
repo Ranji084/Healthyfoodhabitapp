@@ -1,7 +1,6 @@
 package com.simats.Healthyfoodhabitapp.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -89,63 +88,6 @@ fun GoalScreen(onStartClick: () -> Unit) {
             enabled = selectedGoal != null
         ) {
             Text(text = "Start My Journey", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-fun GoalCard(
-    title: String,
-    subtitle: String,
-    emoji: String,
-    emojiBgColor: Color,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isSelected) 8.dp else 2.dp
-        ),
-        border = if (isSelected) ButtonDefaults.outlinedButtonBorder.copy(width = 2.dp) else null
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                modifier = Modifier.size(64.dp),
-                shape = RoundedCornerShape(16.dp),
-                color = emojiBgColor
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(text = emoji, fontSize = 32.sp)
-                }
-            }
-
-            Spacer(modifier = Modifier.width(20.dp))
-
-            Column {
-                Text(
-                    text = title,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DarkGreen
-                )
-                Text(
-                    text = subtitle,
-                    fontSize = 14.sp,
-                    color = DarkGreen.copy(alpha = 0.6f)
-                )
-            }
         }
     }
 }
