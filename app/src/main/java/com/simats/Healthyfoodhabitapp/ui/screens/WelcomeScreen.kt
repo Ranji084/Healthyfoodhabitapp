@@ -11,7 +11,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -134,21 +133,14 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp)
-                .verticalScroll(scrollState),
+                .verticalScroll(scrollState)
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Increased spacer to move logos down from the top
+            Spacer(modifier = Modifier.height(60.dp))
 
-            Box(modifier = Modifier.fillMaxWidth()) {
-                IconButton(
-                    onClick = { showIpDialog = true },
-                    modifier = Modifier.align(Alignment.TopEnd)
-                ) {
-                    Icon(Icons.Default.Settings, contentDescription = null, tint = DarkGreen)
-                }
-            }
-
-            // LOGOS ROW
+            // LOGOS ROW - Ensure proper spacing and sizing
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -157,48 +149,53 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                 Image(
                     painter = painterResource(id = R.drawable.left_logo),
                     contentDescription = "Left Logo",
-                    modifier = Modifier.size(115.dp),
+                    modifier = Modifier.size(100.dp),
                     contentScale = ContentScale.Fit
                 )
                 Image(
                     painter = painterResource(id = R.drawable.right_logo),
                     contentDescription = "Right Logo",
-                    modifier = Modifier.size(115.dp),
+                    modifier = Modifier.size(100.dp),
                     contentScale = ContentScale.Fit
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Text(
                 "Healthy Food Habit",
-                fontSize = 24.sp,
+                fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF2E7D32)
+                color = Color(0xFF2E7D32),
+                textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
+            // Auth Toggle (Register/Login)
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                color = Color.White,
-                shape = RoundedCornerShape(16.dp),
-                shadowElevation = 2.dp
+                color = Color(0xFFEEEEEE),
+                shape = RoundedCornerShape(28.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.padding(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Surface(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
                             .clickable { isRegisterSelected = true },
-                        color = if (isRegisterSelected) DarkGreen else Color.Transparent
+                        color = if (isRegisterSelected) DarkGreen else Color.Transparent,
+                        shape = RoundedCornerShape(24.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 "Register",
-                                color = if (isRegisterSelected) Color.White else DarkGreen,
+                                color = if (isRegisterSelected) Color.White else Color.Gray,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -209,12 +206,13 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                             .weight(1f)
                             .fillMaxHeight()
                             .clickable { isRegisterSelected = false },
-                        color = if (!isRegisterSelected) DarkGreen else Color.Transparent
+                        color = if (!isRegisterSelected) DarkGreen else Color.Transparent,
+                        shape = RoundedCornerShape(24.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 "Login",
-                                color = if (!isRegisterSelected) Color.White else DarkGreen,
+                                color = if (!isRegisterSelected) Color.White else Color.Gray,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -224,6 +222,7 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // Form Content
             Column(modifier = Modifier.fillMaxWidth()) {
 
                 InputField("Email Address", email, { email = it }, "you@example.com")
@@ -242,14 +241,14 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 8.dp),
+                            .padding(top = 12.dp),
                         contentAlignment = Alignment.CenterEnd
                     ) {
                         Text(
                             text = "Forgot Password?",
                             color = DarkGreen,
                             fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
+                            fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.clickable {
                                 onForgotPasswordClick()
                             }
@@ -258,9 +257,7 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                 }
 
                 if (isRegisterSelected) {
-
                     Spacer(modifier = Modifier.height(16.dp))
-
                     InputField(
                         "Confirm Password",
                         confirmPassword,
@@ -270,7 +267,6 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
-
                     InputField(
                         "Full Name",
                         name,
@@ -279,7 +275,6 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
-
                     InputField(
                         "Age",
                         age,
@@ -288,22 +283,21 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                         KeyboardType.Number
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
+                    Spacer(modifier = Modifier.height(24.dp))
                     Text(
                         "Choose Your Goal",
                         fontWeight = FontWeight.Bold,
-                        color = DarkGreen
+                        color = DarkGreen,
+                        modifier = Modifier.padding(bottom = 12.dp)
                     )
 
                     val goals = listOf("Weight Loss", "Maintain Weight", "Muscle Gain")
-
                     goals.forEach { g ->
                         val selected = goal == g
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp)
+                                .padding(vertical = 6.dp)
                                 .clickable { goal = g },
                             shape = RoundedCornerShape(16.dp),
                             color = if (selected) DarkGreen else Color.White,
@@ -311,7 +305,17 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                         ) {
                             Row(
                                 modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically) {
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = selected,
+                                    onClick = { goal = g },
+                                    colors = RadioButtonDefaults.colors(
+                                        selectedColor = Color.White,
+                                        unselectedColor = DarkGreen
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = g,
                                     color = if (selected) Color.White else DarkGreen,
@@ -325,6 +329,7 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
 
             Spacer(modifier = Modifier.height(40.dp))
 
+            // Action Button
             Button(
                 onClick = {
                     if (email.isEmpty() || password.isEmpty()) {
@@ -392,7 +397,7 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                     .fillMaxWidth()
                     .height(60.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(30.dp),
                 enabled = !isLoading
             ) {
                 if (isLoading)
@@ -405,18 +410,19 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                     )
             }
 
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(modifier = Modifier.height(80.dp)) // Extra space to prevent overlapping with fixed bottom text
         }
 
+        // Copyright Text fixed at the bottom centered
         Text(
             text = "2026©powered by SIMATS Engineering",
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp),
             fontSize = 12.sp,
             color = Color.Gray.copy(alpha = 0.7f),
             textAlign = TextAlign.Center,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp)
         )
     }
 }
