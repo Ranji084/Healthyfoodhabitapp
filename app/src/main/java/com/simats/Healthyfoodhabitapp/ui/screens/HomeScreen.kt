@@ -64,7 +64,10 @@ fun HomeScreen(navController: NavController) {
                     isLoadingData = false
                     if (response.isSuccessful && response.body() != null) {
                         val data = response.body()!!
-                        healthScore = data.healthPercentage
+                        
+                        // Cap the score at 98% for believability to match ProgressScreen
+                        val believableScore = if (data.healthPercentage >= 100) 98 else data.healthPercentage
+                        healthScore = believableScore
                         sessionManager.saveHealthScore(healthScore)
                         
                         val nutrition = data.nutritionTotals

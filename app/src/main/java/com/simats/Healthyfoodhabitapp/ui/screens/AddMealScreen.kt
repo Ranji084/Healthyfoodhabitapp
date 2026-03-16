@@ -197,7 +197,8 @@ fun AddMealScreen(navController: NavController, initialMealType: String = "Break
                                         res.fat ?: 0f
                                     )
 
-                                    val adv = Uri.encode(res.nutritionAdvice ?: "")
+                                    // Use ai_tip from server as advice
+                                    val adv = Uri.encode(res.aiTip ?: res.nutritionAdvice ?: "")
                                     val cat = Uri.encode(res.bmiCategory ?: "")
                                     val foodEnc = Uri.encode(foodText)
 

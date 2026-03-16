@@ -73,6 +73,14 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
 
     val api = RetrofitClient.getInstance(context).create(ApiService::class.java)
 
+    // Helper for password validation
+    fun isPasswordValid(p: String): Boolean {
+        val hasLetter = p.any { it.isLetter() }
+        val hasDigit = p.any { it.isDigit() }
+        val hasSpecialChar = p.any { !it.isLetterOrDigit() }
+        return p.length >= 8 && hasLetter && hasDigit && hasSpecialChar
+    }
+
     if (showIpDialog) {
         AlertDialog(
             onDismissRequest = { showIpDialog = false },
@@ -303,8 +311,7 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                         ) {
                             Row(
                                 modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                                verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = g,
                                     color = if (selected) Color.White else DarkGreen,
@@ -325,12 +332,23 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                         return@Button
                     }
 
+                    if (isRegisterSelected) {
+                        if (!isPasswordValid(password)) {
+                            Toast.makeText(context, "Password must be at least 8 characters and contain alphabet, numbers and a special characters", Toast.LENGTH_LONG).show()
+                            return@Button
+                        }
+                        if (password != confirmPassword) {
+                            Toast.makeText(context, "Passwords do not match", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                    }
+
                     isLoading = true
 
                     val user = User(
                         name = if (isRegisterSelected) name else "",
-                        email = email,
-                        password = password,
+                        email = email.trim(),
+                        password = password.trim(),
                         age = age.toIntOrNull(),
                         goal = goal
                     )
@@ -350,7 +368,7 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                                 if (res.status == "success") {
                                     val capturedId = res.userId ?: res.id ?: res.user?.id ?: -1
                                     sessionManager.saveLoginSession(
-                                        email,
+                                        email.trim(),
                                         res.name ?: res.user?.name ?: name ?: "",
                                         capturedId
                                     )

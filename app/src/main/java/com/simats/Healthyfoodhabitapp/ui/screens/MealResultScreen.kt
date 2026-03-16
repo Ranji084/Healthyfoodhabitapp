@@ -135,15 +135,6 @@ fun MealResultScreen(
             item { Spacer(modifier = Modifier.height(24.dp)) }
 
             item {
-                val loggedTypes = loggedMeals.mapNotNull { it.mealType?.lowercase() }.toMutableSet()
-                // Also add the current meal type being analyzed just in case it's not yet in the list from server
-                loggedTypes.add(mealType.lowercase())
-
-                val skippedMeals = mutableListOf<String>()
-                if ("breakfast" !in loggedTypes) skippedMeals.add("Breakfast")
-                if ("lunch" !in loggedTypes) skippedMeals.add("Lunch")
-                if ("dinner" !in loggedTypes) skippedMeals.add("Dinner")
-
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
@@ -158,20 +149,13 @@ fun MealResultScreen(
                         }
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        if (skippedMeals.isNotEmpty()) {
-                            skippedMeals.forEach { skipped ->
-                                Text(
-                                    text = "⚠️ Important: Don't skip $skipped! It's vital for a balanced routine.",
-                                    color = Color(0xFFD32F2F),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                            }
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color(0xFFDCEDC8))
-                        }
-
-                        Text(text = advice, color = DarkGreen.copy(alpha = 0.8f), fontSize = 14.sp, lineHeight = 20.sp)
+                        // Removed the "Don't skip meal" warnings as requested
+                        Text(
+                            text = advice, 
+                            color = DarkGreen.copy(alpha = 0.8f), 
+                            fontSize = 14.sp, 
+                            lineHeight = 20.sp
+                        )
                     }
                 }
             }

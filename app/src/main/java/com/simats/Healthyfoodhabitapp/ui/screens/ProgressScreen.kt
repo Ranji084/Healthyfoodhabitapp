@@ -30,6 +30,13 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
+// Local helper to handle meal display data
+data class MealDisplayItem(
+    val type: String,
+    val food: String,
+    val kcal: Int
+)
+
 @Composable
 fun ProgressScreen(navController: NavController) {
     val context = LocalContext.current
@@ -41,6 +48,7 @@ fun ProgressScreen(navController: NavController) {
     LaunchedEffect(Unit) {
         val api = RetrofitClient.getInstance(context).create(ApiService::class.java)
         val userId = sessionManager.getUserId()
+        Log.d("ProgressScreen", "Fetching insights for userId: $userId")
 
         val request = InsightsRequest(userId)
         api.getViewInsights(request).enqueue(object : Callback<InsightsResponse> {
@@ -48,16 +56,23 @@ fun ProgressScreen(navController: NavController) {
                 isLoading = false
                 if (response.isSuccessful && response.body() != null) {
                     val data = response.body()!!
+                    Log.d("ProgressScreen", "Success: ${data.healthPercentage}%")
                     insightsData = data
                     
+                    // Cap the score at 98% for believability before saving
+                    val believableScore = if (data.healthPercentage >= 100) 98 else data.healthPercentage
+                    
                     // Direct sync to Home Page score
-                    sessionManager.saveHealthScore(data.healthPercentage)
+                    sessionManager.saveHealthScore(believableScore)
                     sessionManager.saveAiAdvice(data.aiSuggestion ?: "Keep logging!")
+                } else {
+                    Log.e("ProgressScreen", "Server Error: ${response.code()} - ${response.errorBody()?.string()}")
                 }
             }
 
             override fun onFailure(call: Call<InsightsResponse>, t: Throwable) {
                 isLoading = false
+                Log.e("ProgressScreen", "Network Failure: ${t.message}", t)
             }
         })
     }
@@ -72,20 +87,31 @@ fun ProgressScreen(navController: NavController) {
             }
         } else if (insightsData == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Could not load insights. Please check your connection.")
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Could not load insights.")
+                    Text("Check Logcat for 'ProgressScreen' tag", fontSize = 12.sp, color = Color.Gray)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = { 
+                        isLoading = true
+                        navController.navigate("progress") { popUpTo("progress") { inclusive = true } }
+                    }) {
+                        Text("Retry")
+                    }
+                }
             }
         } else {
             val data = insightsData!!
-            val nutrition = data.nutritionTotals
+            val percentages = data.nutrientPercentages
             
-            // Fixed sequence: breakfast, lunch, snacks, dinner
+            // Fixed sequence: breakfast, lunch, snack, dinner
             val order = listOf("breakfast", "lunch", "snacks", "snack", "dinner")
             val flattenedMeals = data.mealBreakdown?.flatMap { entry ->
                 entry.value.map { foodItem ->
-                    MealSummaryV2(entry.key, foodItem.food, 70) // Mapping Map to List for display
+                    // Map to our local display item with actual kcal
+                    MealDisplayItem(entry.key, foodItem.food, foodItem.calories.toInt()) 
                 }
             }?.sortedBy { meal ->
-                val idx = order.indexOf(meal.mealType.lowercase())
+                val idx = order.indexOf(meal.type.lowercase())
                 if (idx == -1) 99 else idx
             } ?: emptyList()
 
@@ -99,13 +125,15 @@ fun ProgressScreen(navController: NavController) {
                 item { Text("Your Progress 📈", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = DarkGreen) }
                 item { Spacer(modifier = Modifier.height(16.dp)) }
                 
-                // TODAY'S HEALTH (Directly reflects on Home)
+                // TODAY'S HEALTH
                 item {
                     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = DarkGreen)) {
                         Row(modifier = Modifier.padding(20.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                             Column {
                                 Text("Today's Health", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
-                                Text("${data.healthPercentage}%", color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.Bold)
+                                // Displaying health percentage (capped at 98% for believability)
+                                val displayScore = if (data.healthPercentage >= 100) 98 else data.healthPercentage
+                                Text("$displayScore%", color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.Bold)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -129,11 +157,12 @@ fun ProgressScreen(navController: NavController) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(meal.mealType.replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = DarkGreen)
-                                    Text(meal.foodItems, fontSize = 13.sp, color = Color.Gray)
+                                    Text(meal.type.replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = DarkGreen)
+                                    Text(meal.food, fontSize = 13.sp, color = Color.Gray)
                                 }
+                                // Changed from Percentage to kcal as requested
                                 Surface(color = Color(0xFFE8F5E9), shape = RoundedCornerShape(12.dp)) {
-                                    Text("${meal.score}%", color = DarkGreen, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 14.sp)
+                                    Text("${meal.kcal} kcal", color = DarkGreen, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 14.sp)
                                 }
                             }
                         }
@@ -144,9 +173,9 @@ fun ProgressScreen(navController: NavController) {
                 
                 // NUTRIENT BREAKDOWN
                 item {
-                    val p = if (nutrition != null) (nutrition.protein / 60 * 100).toInt().coerceIn(0, 100) else 0
-                    val c = if (nutrition != null) (nutrition.carbs / 300 * 100).toInt().coerceIn(0, 100) else 0
-                    val f = if (nutrition != null) (nutrition.fat / 70 * 100).toInt().coerceIn(0, 100) else 0
+                    val p = percentages?.get("protein_percent") ?: 0
+                    val c = percentages?.get("carbs_percent") ?: 0
+                    val f = percentages?.get("fat_percent") ?: 0
                     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text("Nutrient Breakdown", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DarkGreen)
@@ -165,25 +194,13 @@ fun ProgressScreen(navController: NavController) {
                 item { Spacer(modifier = Modifier.height(8.dp)) }
                 
                 item {
-                    val allFood = flattenedMeals.joinToString(" ") { it.foodItems.lowercase() }
-                    val dynamicAdvice = when {
-                        allFood.isEmpty() -> "Log your first meal to get personalized advice!"
-                        allFood.contains("apple") || allFood.contains("banana") || allFood.contains("fruit") -> 
-                            "Vitamins on point! Combine fruit with a protein source like nuts for sustained energy. 🍎"
-                        allFood.contains("chicken") || allFood.contains("egg") || allFood.contains("protein") -> 
-                            "Great protein intake! Add some fiber-rich greens like spinach to balance the meal. 🍗"
-                        allFood.contains("rice") || allFood.contains("bread") || allFood.contains("pasta") -> 
-                            "Good fuel! Try whole-grain versions for better digestion and stable sugar levels. 🌾"
-                        else -> data.aiSuggestion ?: "Looking good! Keep tracking to reach your daily goal."
-                    }
-
                     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)), border = BorderStroke(1.dp, Color(0xFFC8E6C9))) {
                         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
                             Icon(Icons.Default.CheckCircle, contentDescription = null, tint = DarkGreen, modifier = Modifier.padding(top = 2.dp))
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text("Personalized Advice", fontWeight = FontWeight.Bold, color = DarkGreen)
-                                Text(dynamicAdvice, fontSize = 12.sp, color = DarkGreen.copy(alpha = 0.8f), lineHeight = 16.sp)
+                                Text(data.aiSuggestion ?: "Keep tracking to reach your daily goal.", fontSize = 12.sp, color = DarkGreen.copy(alpha = 0.8f), lineHeight = 16.sp)
                             }
                         }
                     }
