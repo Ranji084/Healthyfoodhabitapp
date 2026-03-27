@@ -21,14 +21,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.simats.Healthyfoodhabitapp.ui.theme.DarkGreen
 
 data class MealTypeData(val name: String, val emoji: String)
 
 @Composable
 fun BottomNavBar(navController: NavController) {
-    val currentBackStackEntry = navController.currentBackStackEntry
-    val currentRoute = currentBackStackEntry?.destination?.route
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
     
     Surface(
         modifier = Modifier
@@ -65,9 +67,17 @@ fun BottomNavItem(navController: NavController, route: String, icon: ImageVector
             .clickable { 
                 if (currentRoute != route) {
                     navController.navigate(route) {
+                        // Pop up to the start destination of the graph to
+                        // avoid building up a large stack of destinations
+                        // on the back stack as users select items
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        // Avoid multiple copies of the same destination when
+                        // reselecting the same item
                         launchSingleTop = true
+                        // Restore state when reselecting a previously selected item
                         restoreState = true
-                        popUpTo("home") { saveState = true }
                     }
                 } 
             }

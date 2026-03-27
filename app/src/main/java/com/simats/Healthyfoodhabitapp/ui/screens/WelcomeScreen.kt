@@ -50,7 +50,8 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
 
     var name by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
-    var goal by remember { mutableStateOf("Weight Loss") }
+    var gender by remember { mutableStateOf("Male") }
+    var goal by remember { mutableStateOf("") } 
 
     var isLoading by remember { mutableStateOf(false) }
     var showSuccessPopup by remember { mutableStateOf(false) }
@@ -225,7 +226,12 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
             // Form Content
             Column(modifier = Modifier.fillMaxWidth()) {
 
-                InputField("Email Address", email, { email = it }, "you@example.com")
+                InputField(
+                    "Email Address", 
+                    email, 
+                    { email = it }, 
+                    "you@example.com"
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -270,7 +276,7 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                     InputField(
                         "Full Name",
                         name,
-                        { name = it },
+                        { if (it.all { char -> char.isLetter() || char.isWhitespace() }) name = it },
                         "Name"
                     )
 
@@ -279,9 +285,32 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                         "Age",
                         age,
                         { age = it },
-                        "25",
+                        "Age",
                         KeyboardType.Number
                     )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text(
+                        "Gender",
+                        fontWeight = FontWeight.Bold,
+                        color = DarkGreen,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        listOf("Male", "Female", "Other").forEach { g ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = gender == g,
+                                    onClick = { gender = g },
+                                    colors = RadioButtonDefaults.colors(selectedColor = DarkGreen)
+                                )
+                                Text(text = g, color = DarkGreen, fontSize = 14.sp)
+                            }
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(24.dp))
                     Text(
@@ -338,6 +367,10 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                     }
 
                     if (isRegisterSelected) {
+                        if (name.isEmpty() || age.isEmpty() || goal.isEmpty()) { 
+                            Toast.makeText(context, "Please enter your name, age and choose a goal", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
                         if (!isPasswordValid(password)) {
                             Toast.makeText(context, "Password must be at least 8 characters and contain alphabet, numbers and a special characters", Toast.LENGTH_LONG).show()
                             return@Button
@@ -355,6 +388,7 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                         email = email.trim(),
                         password = password.trim(),
                         age = age.toIntOrNull(),
+                        gender = if (isRegisterSelected) gender else null,
                         goal = goal
                     )
 
@@ -372,11 +406,18 @@ fun WelcomeScreen(onAuthSuccess: () -> Unit, onForgotPasswordClick: () -> Unit) 
                                 val res = response.body()!!
                                 if (res.status == "success") {
                                     val capturedId = res.userId ?: res.id ?: res.user?.id ?: -1
+                                    
+                                    // Modified to save full session including age/goal/gender
                                     sessionManager.saveLoginSession(
-                                        email.trim(),
-                                        res.name ?: res.user?.name ?: name ?: "",
-                                        capturedId
+                                        email = email.trim(),
+                                        name = res.name ?: res.user?.name ?: name ?: "",
+                                        userId = capturedId,
+                                        age = res.user?.age ?: age.toIntOrNull(),
+                                        height = res.user?.height,
+                                        weight = res.user?.weight,
+                                        gender = res.user?.gender ?: gender
                                     )
+
                                     if (isRegisterSelected) showSuccessPopup = true
                                     else onAuthSuccess()
                                 } else {

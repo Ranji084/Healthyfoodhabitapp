@@ -30,141 +30,128 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
-// Local helper to handle meal display data
-data class MealDisplayItem(
-    val type: String,
-    val food: String,
-    val kcal: Int
-)
-
 @Composable
 fun ProgressScreen(navController: NavController) {
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
+    val userId = sessionManager.getUserId()
     
     var insightsData by remember { mutableStateOf<InsightsResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        val api = RetrofitClient.getInstance(context).create(ApiService::class.java)
-        val userId = sessionManager.getUserId()
-        Log.d("ProgressScreen", "Fetching insights for userId: $userId")
+        if (userId == -1) {
+            isLoading = false
+            return@LaunchedEffect
+        }
 
+        val api = RetrofitClient.getInstance(context).create(ApiService::class.java)
         val request = InsightsRequest(userId)
+        
         api.getViewInsights(request).enqueue(object : Callback<InsightsResponse> {
             override fun onResponse(call: Call<InsightsResponse>, response: Response<InsightsResponse>) {
                 isLoading = false
                 if (response.isSuccessful && response.body() != null) {
-                    val data = response.body()!!
-                    Log.d("ProgressScreen", "Success: ${data.healthPercentage}%")
-                    insightsData = data
+                    insightsData = response.body()
                     
-                    // Cap the score at 98% for believability before saving
-                    val believableScore = if (data.healthPercentage >= 100) 98 else data.healthPercentage
-                    
-                    // Direct sync to Home Page score
+                    // Sync health score to session for Home Screen
+                    val score = insightsData?.healthPercentage ?: 0
+                    val believableScore = if (score >= 100) 98 else score
                     sessionManager.saveHealthScore(believableScore)
-                    sessionManager.saveAiAdvice(data.aiSuggestion ?: "Keep logging!")
+                    sessionManager.saveAiAdvice(insightsData?.aiSuggestion ?: "Keep logging your meals!")
                 } else {
-                    Log.e("ProgressScreen", "Server Error: ${response.code()} - ${response.errorBody()?.string()}")
+                    // For new users, if the server returns 404 or empty, we treat it as "0 progress"
+                    insightsData = InsightsResponse(healthPercentage = 0)
                 }
             }
 
             override fun onFailure(call: Call<InsightsResponse>, t: Throwable) {
                 isLoading = false
-                Log.e("ProgressScreen", "Network Failure: ${t.message}", t)
+                // Default to 0 values on connection failure for new users
+                insightsData = InsightsResponse(healthPercentage = 0)
             }
         })
     }
 
     Scaffold(
         bottomBar = { BottomNavBar(navController) },
-        containerColor = Color(0xFFF3F0E7)
+        containerColor = Color(0xFFF8F9FA)
     ) { padding ->
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = DarkGreen)
             }
-        } else if (insightsData == null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Could not load insights.")
-                    Text("Check Logcat for 'ProgressScreen' tag", fontSize = 12.sp, color = Color.Gray)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { 
-                        isLoading = true
-                        navController.navigate("progress") { popUpTo("progress") { inclusive = true } }
-                    }) {
-                        Text("Retry")
-                    }
-                }
-            }
         } else {
-            val data = insightsData!!
-            val percentages = data.nutrientPercentages
+            val data = insightsData ?: InsightsResponse(healthPercentage = 0)
             
-            // Fixed sequence: breakfast, lunch, snack, dinner
-            val order = listOf("breakfast", "lunch", "snacks", "snack", "dinner")
-            val flattenedMeals = data.mealBreakdown?.flatMap { entry ->
-                entry.value.map { foodItem ->
-                    // Map to our local display item with actual kcal
-                    MealDisplayItem(entry.key, foodItem.food, foodItem.calories.toInt()) 
-                }
-            }?.sortedBy { meal ->
-                val idx = order.indexOf(meal.type.lowercase())
-                if (idx == -1) 99 else idx
-            } ?: emptyList()
-
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 20.dp)
             ) {
-                item { Spacer(modifier = Modifier.height(16.dp)) }
-                item { Text("Your Progress 📈", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = DarkGreen) }
-                item { Spacer(modifier = Modifier.height(16.dp)) }
+                item { Spacer(modifier = Modifier.height(24.dp)) }
+                item { Text("Your Insights 📊", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = DarkGreen) }
+                item { Spacer(modifier = Modifier.height(20.dp)) }
                 
-                // TODAY'S HEALTH
+                // TODAY'S HEALTH PERCENTAGE
                 item {
-                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = DarkGreen)) {
-                        Row(modifier = Modifier.padding(20.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(28.dp),
+                        colors = CardDefaults.cardColors(containerColor = DarkGreen)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
                             Column {
                                 Text("Today's Health", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
-                                // Displaying health percentage (capped at 98% for believability)
                                 val displayScore = if (data.healthPercentage >= 100) 98 else data.healthPercentage
-                                Text("$displayScore%", color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.Bold)
+                                Text("$displayScore%", color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Bold)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
+                                    Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Reflected on Dashboard", color = Color.White, fontSize = 12.sp)
+                                    Text("Daily Progress", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
                                 }
                             }
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(80.dp)) {
-                                CircularProgressIndicator(progress = { data.healthPercentage / 100f }, modifier = Modifier.fillMaxSize(), color = Color.White, strokeWidth = 6.dp, trackColor = Color.White.copy(alpha = 0.2f), strokeCap = StrokeCap.Round)
-                                Icon(Icons.Default.Shield, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(90.dp)) {
+                                CircularProgressIndicator(
+                                    progress = { data.healthPercentage / 100f },
+                                    modifier = Modifier.fillMaxSize(),
+                                    color = Color(0xFF00C853),
+                                    strokeWidth = 8.dp,
+                                    trackColor = Color.White.copy(alpha = 0.1f),
+                                    strokeCap = StrokeCap.Round
+                                )
+                                Icon(Icons.Default.Shield, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
                             }
                         }
                     }
                 }
 
-                item { Spacer(modifier = Modifier.height(24.dp)) }
-                item { Text("Today's Meal Breakdown", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DarkGreen) }
-                item { Spacer(modifier = Modifier.height(8.dp)) }
+                item { Spacer(modifier = Modifier.height(32.dp)) }
+                item { Text("Today's Meals Breakdown", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DarkGreen) }
+                item { Spacer(modifier = Modifier.height(12.dp)) }
                 
-                items(flattenedMeals) { meal ->
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(meal.type.replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = DarkGreen)
-                                    Text(meal.food, fontSize = 13.sp, color = Color.Gray)
-                                }
-                                // Changed from Percentage to kcal as requested
-                                Surface(color = Color(0xFFE8F5E9), shape = RoundedCornerShape(12.dp)) {
-                                    Text("${meal.kcal} kcal", color = DarkGreen, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 14.sp)
-                                }
-                            }
+                val meals = data.mealBreakdown ?: emptyMap()
+                if (meals.isEmpty()) {
+                    item {
+                        Text("No meals logged today. Log your breakfast to see your progress!", color = Color.Gray, fontSize = 14.sp, modifier = Modifier.padding(vertical = 16.dp))
+                    }
+                } else {
+                    val order = listOf("breakfast", "lunch", "snacks", "snack", "dinner")
+                    val sortedTypes = meals.keys.sortedBy { type -> 
+                        val idx = order.indexOf(type.lowercase())
+                        if (idx == -1) 99 else idx
+                    }
+                    
+                    items(sortedTypes) { type ->
+                        val foodItems = meals[type] ?: emptyList()
+                        foodItems.forEach { item ->
+                            MealBreakdownCard(type, item)
+                            Spacer(modifier = Modifier.height(12.dp))
                         }
                     }
                 }
@@ -173,38 +160,54 @@ fun ProgressScreen(navController: NavController) {
                 
                 // NUTRIENT BREAKDOWN
                 item {
-                    val p = percentages?.get("protein_percent") ?: 0
-                    val c = percentages?.get("carbs_percent") ?: 0
-                    val f = percentages?.get("fat_percent") ?: 0
-                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Nutrient Breakdown", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DarkGreen)
-                            Spacer(modifier = Modifier.height(12.dp))
-                            NutrientBar("Protein", p, Color(0xFF2196F3))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            NutrientBar("Carbs", c, Color(0xFFFFC107))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            NutrientBar("Fats", f, Color(0xFF4CAF50))
+                    Text("Nutrient Breakdown", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DarkGreen)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(24.dp)) {
+                            val totals = data.nutritionTotals ?: NutritionTotals()
+                            val percentages = data.nutrientPercentages ?: emptyMap()
+                            
+                            NutrientRow("Protein", "${totals.protein.toInt()}g", percentages["protein_percent"] ?: 0, Color(0xFF4285F4))
+                            Spacer(modifier = Modifier.height(16.dp))
+                            NutrientRow("Carbs", "${totals.carbs.toInt()}g", percentages["carbs_percent"] ?: 0, Color(0xFFFF9800))
+                            Spacer(modifier = Modifier.height(16.dp))
+                            NutrientRow("Fats", "${totals.fat.toInt()}g", percentages["fat_percent"] ?: 0, Color(0xFF4CAF50))
                         }
                     }
                 }
 
-                item { Spacer(modifier = Modifier.height(24.dp)) }
-                item { Text("AI Coach Suggestions", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DarkGreen) }
-                item { Spacer(modifier = Modifier.height(8.dp)) }
+                item { Spacer(modifier = Modifier.height(32.dp)) }
+                item { Text("AI Coach suggestions", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DarkGreen) }
+                item { Spacer(modifier = Modifier.height(12.dp)) }
                 
                 item {
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)), border = BorderStroke(1.dp, Color(0xFFC8E6C9))) {
-                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = DarkGreen, modifier = Modifier.padding(top = 2.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F8E9)),
+                        border = BorderStroke(1.dp, Color(0xFFDCEDC8))
+                    ) {
+                        Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.Top) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = DarkGreen)
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
-                                Text("Personalized Advice", fontWeight = FontWeight.Bold, color = DarkGreen)
-                                Text(data.aiSuggestion ?: "Keep tracking to reach your daily goal.", fontSize = 12.sp, color = DarkGreen.copy(alpha = 0.8f), lineHeight = 16.sp)
+                                Text("Coach Tip", fontWeight = FontWeight.Bold, color = DarkGreen)
+                                Text(
+                                    text = if (data.aiSuggestion.isNullOrBlank()) "Log your meals to get personalized nutrition advice from your AI Coach!" else data.aiSuggestion,
+                                    fontSize = 14.sp,
+                                    color = DarkGreen.copy(alpha = 0.8f),
+                                    lineHeight = 20.sp
+                                )
                             }
                         }
                     }
                 }
+                
                 item { Spacer(modifier = Modifier.height(100.dp)) }
             }
         }
@@ -212,18 +215,45 @@ fun ProgressScreen(navController: NavController) {
 }
 
 @Composable
-fun NutrientBar(name: String, percent: Int, color: Color, modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Text("$percent%", fontSize = 12.sp, color = color, fontWeight = FontWeight.Bold)
+fun MealBreakdownCard(type: String, item: FoodItem) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(type.replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.Bold, color = DarkGreen, fontSize = 16.sp)
+                Text(item.food, color = Color.Gray, fontSize = 13.sp)
+            }
+            Surface(color = Color(0xFFE8F5E9), shape = RoundedCornerShape(12.dp)) {
+                Text(
+                    text = "${item.calories.toInt()} kcal",
+                    color = DarkGreen,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
         }
-        Spacer(modifier = Modifier.height(4.dp))
+    }
+}
+
+@Composable
+fun NutrientRow(name: String, value: String, percentage: Int, color: Color) {
+    Column {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text(value, color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         LinearProgressIndicator(
-            progress = { percent / 100f },
+            progress = { percentage / 100f },
             modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
             color = color,
-            trackColor = color.copy(alpha = 0.2f)
+            trackColor = color.copy(alpha = 0.1f),
+            strokeCap = StrokeCap.Round
         )
     }
 }

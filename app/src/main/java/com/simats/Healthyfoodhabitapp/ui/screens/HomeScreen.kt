@@ -40,11 +40,11 @@ fun HomeScreen(navController: NavController) {
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
     
-    // Use state to track the name so it updates when session manager changes
+    // Default to 0 for new users
     var userName by remember { mutableStateOf(sessionManager.getUserName()) }
     val userId = sessionManager.getUserId()
     
-    var healthScore by remember { mutableIntStateOf(sessionManager.getHealthScore()) }
+    var healthScore by remember { mutableIntStateOf(0) }
     var protein by remember { mutableStateOf("0g") }
     var carbs by remember { mutableStateOf("0g") }
     var fats by remember { mutableStateOf("0g") }
@@ -52,36 +52,40 @@ fun HomeScreen(navController: NavController) {
     var isLoadingData by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        // Refresh name whenever we enter home
         userName = sessionManager.getUserName()
 
         if (userId != -1) {
             val api = RetrofitClient.getInstance(context).create(ApiService::class.java)
-            
             val request = InsightsRequest(userId)
+            
             api.getViewInsights(request).enqueue(object : Callback<InsightsResponse> {
                 override fun onResponse(call: Call<InsightsResponse>, response: Response<InsightsResponse>) {
                     isLoadingData = false
                     if (response.isSuccessful && response.body() != null) {
                         val data = response.body()!!
                         
-                        // Cap the score at 98% for believability to match ProgressScreen
-                        val believableScore = if (data.healthPercentage >= 100) 98 else data.healthPercentage
-                        healthScore = believableScore
+                        // Default to 0 if data is not available
+                        healthScore = if (data.healthPercentage == 0) 0 else {
+                            if (data.healthPercentage >= 100) 98 else data.healthPercentage
+                        }
                         sessionManager.saveHealthScore(healthScore)
                         
                         val nutrition = data.nutritionTotals
                         protein = "${nutrition?.protein?.toInt() ?: 0}g"
                         carbs = "${nutrition?.carbs?.toInt() ?: 0}g"
                         fats = "${nutrition?.fat?.toInt() ?: 0}g"
+                    } else {
+                        healthScore = 0
                     }
                 }
                 override fun onFailure(call: Call<InsightsResponse>, t: Throwable) {
                     isLoadingData = false
+                    healthScore = 0
                 }
             })
         } else {
             isLoadingData = false
+            healthScore = 0
         }
     }
 
@@ -189,13 +193,13 @@ fun HomeScreen(navController: NavController) {
                             Text(text = "BMI Calculator", fontWeight = FontWeight.Bold, color = DarkGreen, fontSize = 18.sp)
                             Spacer(modifier = Modifier.height(16.dp))
                             
-                            var heightInput by remember { mutableStateOf("") }
-                            var weightInput by remember { mutableStateOf("") }
+                            var hInput by remember { mutableStateOf("") }
+                            var wInput by remember { mutableStateOf("") }
 
                             Row(modifier = Modifier.fillMaxWidth()) {
                                 OutlinedTextField(
-                                    value = heightInput,
-                                    onValueChange = { heightInput = it },
+                                    value = hInput,
+                                    onValueChange = { hInput = it },
                                     label = { Text("Height (cm)") },
                                     modifier = Modifier.weight(1f),
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -203,8 +207,8 @@ fun HomeScreen(navController: NavController) {
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 OutlinedTextField(
-                                    value = weightInput,
-                                    onValueChange = { weightInput = it },
+                                    value = wInput,
+                                    onValueChange = { wInput = it },
                                     label = { Text("Weight (kg)") },
                                     modifier = Modifier.weight(1f),
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -216,8 +220,8 @@ fun HomeScreen(navController: NavController) {
                             
                             Button(
                                 onClick = {
-                                    val h = heightInput.toFloatOrNull()
-                                    val w = weightInput.toFloatOrNull()
+                                    val h = hInput.toFloatOrNull()
+                                    val w = wInput.toFloatOrNull()
                                     if (h != null && w != null && h > 0) {
                                         val bmiValue = w / (h / 100).pow(2)
                                         val category = when {

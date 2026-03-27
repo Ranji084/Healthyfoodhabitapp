@@ -3,11 +3,12 @@ package com.simats.Healthyfoodhabitapp.ui.screens
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Straighten
@@ -35,16 +36,14 @@ fun ProfileScreen(navController: NavController) {
 
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
+    val scrollState = rememberScrollState()
 
     var name by remember { mutableStateOf(sessionManager.getUserName()) }
-    var age by remember { mutableStateOf("") }
-    var gender by remember { mutableStateOf("") }
-    var height by remember { mutableStateOf("") }
-    var weight by remember { mutableStateOf("") }
-    var expanded by remember { mutableStateOf(false) }
+    var age by remember { mutableStateOf(sessionManager.getUserAge()) }
+    var gender by remember { mutableStateOf(sessionManager.getUserGender()) }
+    var height by remember { mutableStateOf(sessionManager.getUserHeight()) }
+    var weight by remember { mutableStateOf(sessionManager.getUserWeight()) }
     var isLoading by remember { mutableStateOf(false) }
-
-    val genders = listOf("Male", "Female", "Other")
 
     Scaffold(
         topBar = {
@@ -65,6 +64,7 @@ fun ProfileScreen(navController: NavController) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(scrollState)
                 .padding(24.dp)
         ) {
 
@@ -79,7 +79,7 @@ fun ProfileScreen(navController: NavController) {
 
             Card(
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9))
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
 
@@ -88,7 +88,11 @@ fun ProfileScreen(navController: NavController) {
                     Spacer(modifier = Modifier.height(6.dp))
                     OutlinedTextField(
                         value = name,
-                        onValueChange = { name = it },
+                        onValueChange = { newValue ->
+                            if (newValue.all { it.isLetter() || it.isWhitespace() }) {
+                                name = newValue
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         leadingIcon = { Icon(Icons.Default.Person, null) },
                         shape = RoundedCornerShape(12.dp)
@@ -96,54 +100,33 @@ fun ProfileScreen(navController: NavController) {
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // AGE + GENDER
-                    Row {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Age", fontWeight = FontWeight.Bold, color = DarkGreen)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            OutlinedTextField(
-                                value = age,
-                                onValueChange = { age = it },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                        }
+                    // AGE
+                    Text("Age", fontWeight = FontWeight.Bold, color = DarkGreen)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = age,
+                        onValueChange = { age = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(12.dp)
+                    )
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Gender", fontWeight = FontWeight.Bold, color = DarkGreen)
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            ExposedDropdownMenuBox(
-                                expanded = expanded,
-                                onExpandedChange = { expanded = !expanded }
-                            ) {
-                                OutlinedTextField(
-                                    value = gender,
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    trailingIcon = {
-                                        Icon(Icons.Default.ArrowDropDown, null)
-                                    },
-                                    modifier = Modifier.menuAnchor(),
-                                    shape = RoundedCornerShape(12.dp)
+                    // GENDER
+                    Text("Gender", fontWeight = FontWeight.Bold, color = DarkGreen)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("Male", "Female", "Other").forEach { g ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = gender == g,
+                                    onClick = { gender = g },
+                                    colors = RadioButtonDefaults.colors(selectedColor = DarkGreen)
                                 )
-
-                                ExposedDropdownMenu(
-                                    expanded = expanded,
-                                    onDismissRequest = { expanded = false }
-                                ) {
-                                    genders.forEach {
-                                        DropdownMenuItem(
-                                            text = { Text(it) },
-                                            onClick = {
-                                                gender = it
-                                                expanded = false
-                                            }
-                                        )
-                                    }
-                                }
+                                Text(text = g, color = DarkGreen, fontSize = 14.sp)
                             }
                         }
                     }
@@ -181,7 +164,7 @@ fun ProfileScreen(navController: NavController) {
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(40.dp))
 
             // SAVE BUTTON
             Button(
@@ -191,7 +174,7 @@ fun ProfileScreen(navController: NavController) {
                     val userId = sessionManager.getUserId()
                     
                     if (name.isBlank() || email.isNullOrBlank() || userId == -1) {
-                        Toast.makeText(context, "Please enter your name", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Incomplete Session. Please log in again.", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
 
@@ -201,11 +184,11 @@ fun ProfileScreen(navController: NavController) {
                         id = userId,
                         name = name,
                         email = email,
-                        password = null, // Send null to avoid changing password or causing errors
+                        password = null,
                         age = age.toIntOrNull(),
                         height = height.toFloatOrNull(),
                         weight = weight.toFloatOrNull(),
-                        gender = if(gender.isNotBlank()) gender else null
+                        gender = gender
                     )
 
                     RetrofitClient.getInstance(context)
@@ -219,7 +202,16 @@ fun ProfileScreen(navController: NavController) {
                             ) {
                                 isLoading = false
                                 if (response.isSuccessful) {
-                                    sessionManager.saveLoginSession(email, name, userId)
+                                    // Update local session with new values
+                                    sessionManager.saveLoginSession(
+                                        email = email,
+                                        name = name,
+                                        userId = userId,
+                                        age = age.toIntOrNull(),
+                                        height = height.toFloatOrNull(),
+                                        weight = weight.toFloatOrNull(),
+                                        gender = gender
+                                    )
                                     Toast.makeText(context, "Profile Updated!", Toast.LENGTH_SHORT).show()
                                     navController.popBackStack()
                                 } else {
@@ -238,7 +230,8 @@ fun ProfileScreen(navController: NavController) {
                     .fillMaxWidth()
                     .height(55.dp),
                 shape = RoundedCornerShape(28.dp),
-                enabled = !isLoading
+                enabled = !isLoading,
+                colors = ButtonDefaults.buttonColors(containerColor = DarkGreen)
             ) {
                 if (isLoading)
                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))

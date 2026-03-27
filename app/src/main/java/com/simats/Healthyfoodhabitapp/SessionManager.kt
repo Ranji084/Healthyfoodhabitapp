@@ -5,9 +5,17 @@ import android.content.SharedPreferences
 
 class SessionManager(context: Context) {
     private val sharedPref: SharedPreferences = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
-    private val defaultUrl = "http://10.161.227.202:5000/"
+    private val defaultUrl = "http://10.69.19.201:5000/"
 
-    fun saveLoginSession(email: String, name: String? = null, userId: Int? = null) {
+    fun saveLoginSession(
+        email: String, 
+        name: String? = null, 
+        userId: Int? = null,
+        age: Int? = null,
+        height: Float? = null,
+        weight: Float? = null,
+        gender: String? = null
+    ) {
         sharedPref.edit().apply {
             putString("user_email", email)
             if (!name.isNullOrBlank()) {
@@ -16,7 +24,22 @@ class SessionManager(context: Context) {
             if (userId != null) {
                 putInt("user_id", userId)
             }
+            if (age != null) {
+                putInt("user_age", age)
+            }
+            if (height != null) {
+                putFloat("user_height", height)
+            }
+            if (weight != null) {
+                putFloat("user_weight", weight)
+            }
+            if (!gender.isNullOrBlank()) {
+                putString("user_gender", gender)
+            }
             putBoolean("is_logged_in", true)
+            // Reset daily stats for a fresh login session
+            putInt("health_score", 0)
+            putString("ai_advice", "Log your meals to see progress!")
             apply()
         }
     }
@@ -24,8 +47,12 @@ class SessionManager(context: Context) {
     fun isLoggedIn(): Boolean = sharedPref.getBoolean("is_logged_in", false)
     fun getUserEmail(): String? = sharedPref.getString("user_email", null)
     fun getUserName(): String = sharedPref.getString("user_name", "User") ?: "User"
-    
     fun getUserId(): Int = sharedPref.getInt("user_id", -1)
+    
+    fun getUserAge(): String = sharedPref.getInt("user_age", 0).let { if (it == 0) "" else it.toString() }
+    fun getUserHeight(): String = sharedPref.getFloat("user_height", 0f).let { if (it == 0f) "" else it.toString() }
+    fun getUserWeight(): String = sharedPref.getFloat("user_weight", 0f).let { if (it == 0f) "" else it.toString() }
+    fun getUserGender(): String = sharedPref.getString("user_gender", "Male") ?: "Male"
 
     // --- DYNAMIC SERVER IP ---
     fun saveBaseUrl(ip: String) {
@@ -83,7 +110,7 @@ class SessionManager(context: Context) {
     }
 
     fun getAiAdvice(): String {
-        return sharedPref.getString("ai_advice", "No advice available") ?: "No advice available"
+        return sharedPref.getString("ai_advice", "Log your meals to see progress!") ?: "Log your meals to see progress!"
     }
 
     fun logout() {
